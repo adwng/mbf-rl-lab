@@ -9,6 +9,7 @@ INSTALL_REQUIRES = [
   # the `mjENBL_MULTICCD` enum that mujoco-warp 3.5.0 still references. Cap to
   # the last compatible release.
   "mujoco>=3.4.0,<3.8.0",
+  "warp-lang>=1.12.0,<1.13.0"
 ]
 
 setup(
