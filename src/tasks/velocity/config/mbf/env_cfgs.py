@@ -96,27 +96,27 @@ def mbf_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # and num_steps = floor(stairs_radius / step_width). The mjlab defaults
   # (platform_width=3.0, sub-terrain border_width=1.0) assume an 8 m patch and
   # would leave zero room for stairs in a 5 m patch, so we shrink them.
-  if "pyramid_stairs" in gen.sub_terrains:
-    sub = gen.sub_terrains["pyramid_stairs"]
-    sub.step_height_range = (0.0, 0.1)  # 0–5 cm; default 0–10 is half a leg
-    sub.step_width = 0.20                 # tread depth
-    sub.platform_width = 1.0
-    sub.border_width = 0.25
-    # stairs_radius = (5 - 0.5 - 1.0)/2 = 1.75 m  →  ~8 stair rings
-  if "pyramid_stairs_inv" in gen.sub_terrains:
-    sub = gen.sub_terrains["pyramid_stairs_inv"]
-    sub.step_height_range = (0.0, 0.05)
-    sub.step_width = 0.20
-    sub.platform_width = 1.0
-    sub.border_width = 0.25
-  if "random_rough" in gen.sub_terrains:
-    gen.sub_terrains["random_rough"].noise_range = (0.01, 0.05)
-    gen.sub_terrains["random_rough"].noise_step = 0.01
-  if "wave_terrain" in gen.sub_terrains:
-    gen.sub_terrains["wave_terrain"].amplitude_range = (0.0, 0.10)
-    gen.sub_terrains["wave_terrain"].num_waves = 3
+  # if "pyramid_stairs" in gen.sub_terrains:
+  #   sub = gen.sub_terrains["pyramid_stairs"]
+  #   sub.step_height_range = (0.0, 0.1)  # 0–5 cm; default 0–10 is half a leg
+  #   sub.step_width = 0.20                 # tread depth
+  #   sub.platform_width = 1.0
+  #   sub.border_width = 0.25
+  #   # stairs_radius = (5 - 0.5 - 1.0)/2 = 1.75 m  →  ~8 stair rings
+  # if "pyramid_stairs_inv" in gen.sub_terrains:
+  #   sub = gen.sub_terrains["pyramid_stairs_inv"]
+  #   sub.step_height_range = (0.0, 0.05)
+  #   sub.step_width = 0.20
+  #   sub.platform_width = 1.0
+  #   sub.border_width = 0.25
+  # if "random_rough" in gen.sub_terrains:
+  #   gen.sub_terrains["random_rough"].noise_range = (0.01, 0.05)
+  #   gen.sub_terrains["random_rough"].noise_step = 0.01
+  # if "wave_terrain" in gen.sub_terrains:
+  #   gen.sub_terrains["wave_terrain"].amplitude_range = (0.0, 0.10)
+  #   gen.sub_terrains["wave_terrain"].num_waves = 3
 
-  cfg.scene.terrain.max_init_terrain_level = 3
+  # cfg.scene.terrain.max_init_terrain_level = 3
 
   ##
   # Actions: per-joint scale 
@@ -142,7 +142,7 @@ def mbf_rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.observations["actor"].terms.pop("base_lin_vel", None)
   cfg.observations["actor"].terms.pop("height_scan", None)
   cfg.observations["actor"].history_length = 10
-  cfg.observations["critic"].history_length = 1
+  cfg.observations["critic"].history_length = 5
 
   cfg.observations["critic"].terms["foot_height"].params["asset_cfg"].site_names = (
     _FOOT_SITE_NAMES

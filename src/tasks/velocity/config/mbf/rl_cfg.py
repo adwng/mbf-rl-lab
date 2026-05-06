@@ -53,4 +53,4 @@ def mbf_flat_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
 
 def mbf_rough_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   """PPO config for MBF rough-terrain velocity task."""
-  return _ppo(experiment_name="mbf_velocity_rough", max_iterations=6001)
+  return _ppo(experiment_name="mbf_velocity_rough", max_iterations=5001)
