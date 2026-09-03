@@ -1,0 +1,234 @@
+<mujoco model="mbf">
+  <compiler angle="radian" meshdir="assets" autolimits="true" balanceinertia="true"/>
+
+  <!-- Damping / frictionloss identified from the bench sine logs in data/sysid/
+       by scripts/sysid/identify_actuator.py, fit against this MuJoCo plant at
+       the env's own 5 ms timestep (7.2 mrad replay RMSE vs 8.7 for the previous
+       hand-ported values). These are timestep-specific: refitting at 1 ms wants
+       ~25% less damping, so if sim.timestep changes, refit.
+
+       armature is deliberately left at the previous 0.003: the bench data
+       cannot identify it. Replay RMSE is flat at 7.2 mrad for armature anywhere
+       in 0.0024-0.0060, because a single 1.5 Hz tone cannot separate rotor
+       inertia from the (unlogged) bench pose's structural inertia. The
+       joint_armature DR range in env_cfgs.py spans that band on purpose.
+
+       PD gains live in mbf_constants.py (Kp=20, Kd=0.5), separate from this
+       viscous damping. Do not hand-edit -- rerun the identifier. -->
+  <default>
+    <default class="robot">
+      <default class="shoulder_joint">
+        <joint armature="0.003" damping="0.135" frictionloss="0.228"/>
+      </default>
+      <default class="hip_joint">
+        <joint armature="0.003" damping="0.175" frictionloss="0.092"/>
+      </default>
+      <default class="knee_joint">
+        <joint armature="0.003" damping="0.176" frictionloss="0.146"/>
+      </default>
+      <default class="visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="2"/>
+      </default>
+      <default class="collision">
+        <geom type="mesh" contype="1" conaffinity="1" group="3"/>
+        <default class="foot">
+          <geom type="sphere" size="0.022"/>
+        </default>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <material name="chassis_material" rgba="0.74902 0.74902 0.74902 1"/>
+    <material name="shoulder_material" rgba="0.498039 0.498039 0.498039 1"/>
+    <material name="hip_material" rgba="0.498039 0.498039 0.498039 1"/>
+    <material name="knee_material" rgba="0.498039 0.498039 0.498039 1"/>
+    <material name="feet_material" rgba="0 0 0 1"/>
+
+    <mesh name="chassis" file="chassis.stl"/>
+    <mesh name="shoulder" file="shoulder.stl"/>
+    <mesh name="lefthip" file="lefthip.stl"/>
+    <mesh name="rightthip" file="rightthip.stl"/>
+    <mesh name="leftknee" file="leftknee.stl"/>
+    <mesh name="rightknee" file="rightknee.stl"/>
+    <mesh name="feet" file="feet.stl"/>
+  </asset>
+
+  <worldbody>
+    <!-- Kinematics / inertias match mbf_description/urdf/mbf.urdf. -->
+    <body name="chassis" pos="0 0 0.25" childclass="robot">
+      <freejoint name="floating_base"/>
+      <inertial pos="-7.49398e-05 0.00038654 -0.00334968" mass="2.5"
+        fullinertia="0.0140758 0.0300982 0.032291 -1.03544e-05 1.89531e-06 -3.2478e-06"/>
+      <camera name="tracking" pos="0.846 -1.3 0.316"
+        xyaxes="0.866 0.500 0.000 -0.171 0.296 0.940" mode="trackcom"/>
+      <camera name="side" pos="0 -1 .3" xyaxes="1 0 0 0 1 2" mode="trackcom"/>
+      <camera name="back" pos="-1 0 .3" xyaxes="0 -1 0 1 0 2" mode="trackcom"/>
+      <site name="imu" pos="0 0 0" group="5"/>
+      <geom name="chassis_visual" mesh="chassis" material="chassis_material" class="visual"/>
+      <geom name="chassis_collision" mesh="chassis" class="collision"/>
+
+      <!-- FL -->
+      <body name="fl_shoulder_link" pos="0.1835 0.0475 0">
+        <inertial pos="-0.00598552 0.00880498 0.00146505" mass="0.42"
+          fullinertia="0.000238461 0.000387612 0.00033247 -2.21138e-05 -3.70032e-06 -1.53448e-05"/>
+        <joint name="fl_shoulder_joint" class="shoulder_joint"
+          axis="1 0 0" range="-1.0472 1.0472"/>
+        <!-- URDF visual rpy = (pi, 0, pi/2) -->
+        <geom name="fl_shoulder_link_visual" quat="0 0.707107 0.707107 0" mesh="shoulder"
+          material="shoulder_material" class="visual"/>
+        <geom name="fl_shoulder_link_collision" type="box" quat="0 0.707107 0.707107 0"
+          pos="-0.0075 0.0123 0" size="0.0302 0.0475 0.04" class="collision"/>
+        <body name="fl_hip_link" pos="0 0.0835 0">
+          <inertial pos="0.000597466 -0.0146741 -0.0153971" mass="0.7"
+            fullinertia="0.0011656 0.00123583 0.000397878 -1.25867e-05 -1.45116e-05 0.000143806"/>
+          <joint name="fl_hip_joint" class="hip_joint"
+            axis="0 1 0" range="-1.7 3.5"/>
+          <geom name="fl_hip_link_visual" mesh="lefthip" material="hip_material" class="visual"/>
+          <geom name="fl_hip_link_collision" type="capsule" pos="0 -0.0148 -0.0475"
+            size="0.0345 0.0530" class="collision"/>
+          <body name="fl_knee_link" pos="0 0 -0.12">
+            <inertial pos="0.00415201 -2.15069e-05 -0.0486477" mass="0.1"
+              fullinertia="0.000258578 0.000265226 1.25963e-05 4.362e-09 9.89836e-06 -1.9627e-08"/>
+            <joint name="fl_knee_joint" class="knee_joint"
+              axis="0 1 0" range="-2.5 0"/>
+            <geom name="fl_knee_link_visual" mesh="leftknee" material="knee_material" class="visual"/>
+            <geom name="fl_knee_link_collision" type="capsule" pos="0.001 0 -0.0513"
+              size="0.0137 0.0750" class="collision"/>
+            <body name="fl_foot_link" pos="0 0 -0.12">
+              <inertial pos="-0.00526123 0 -0.00526123" mass="0.01"
+                diaginertia="2.47992e-06 4.79318e-06 2.47992e-06"/>
+              <geom name="fl_foot_visual" mesh="feet" material="feet_material" class="visual"/>
+              <site name="fl_foot" pos="0 0 0" type="sphere" size="0.022"/>
+              <geom name="fl_foot_collision" class="foot"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- FR -->
+      <body name="fr_shoulder_link" pos="0.1835 -0.0475 0">
+        <inertial pos="-0.00598552 -0.00880498 -0.00146505" mass="0.42"
+          fullinertia="0.000238461 0.000387612 0.00033247 2.21138e-05 3.70032e-06 -1.53448e-05"/>
+        <joint name="fr_shoulder_joint" class="shoulder_joint"
+          axis="1 0 0" range="-1.0472 1.0472"/>
+        <!-- URDF visual rpy = (0, 0, -pi/2) -->
+        <geom name="fr_shoulder_link_visual" quat="0.707107 0 0 -0.707107" mesh="shoulder"
+          material="shoulder_material" class="visual"/>
+        <geom name="fr_shoulder_link_collision" type="box" quat="0.707107 0 0 -0.707107"
+          pos="-0.0075 -0.0123 0" size="0.0302 0.0475 0.04" class="collision"/>
+        <body name="fr_hip_link" pos="0 -0.0835 0">
+          <inertial pos="0.000597465 0.0146741 -0.0153971" mass="0.7"
+            fullinertia="0.0011656 0.00123583 0.000397878 1.25867e-05 -1.45116e-05 -0.000143806"/>
+          <joint name="fr_hip_joint" class="hip_joint"
+            axis="0 1 0" range="-1.7 3.5"/>
+          <!-- URDF visual rpy = (0, 0, -pi/2) -->
+          <geom name="fr_hip_link_visual" quat="0.707107 0 0 -0.707107" mesh="rightthip"
+            material="hip_material" class="visual"/>
+          <geom name="fr_hip_link_collision" type="capsule" quat="0.707107 0 0 -0.707107"
+            pos="0 0.0148 -0.0475" size="0.0345 0.0530" class="collision"/>
+          <body name="fr_knee_link" pos="0 0 -0.12">
+            <inertial pos="0.00415201 2.15069e-05 -0.0486477" mass="0.1"
+              fullinertia="0.000258578 0.000265226 1.25963e-05 -4.362e-09 9.89836e-06 1.9627e-08"/>
+            <joint name="fr_knee_joint" class="knee_joint"
+              axis="0 1 0" range="-2.5 0"/>
+            <geom name="fr_knee_link_visual" mesh="rightknee" material="knee_material" class="visual"/>
+            <geom name="fr_knee_link_collision" type="capsule" pos="0.001 0 -0.0513"
+              size="0.0137 0.0750" class="collision"/>
+            <body name="fr_foot_link" pos="0 0 -0.12">
+              <inertial pos="-0.00526123 0 -0.00526123" mass="0.01"
+                diaginertia="2.47992e-06 4.79318e-06 2.47992e-06"/>
+              <geom name="fr_foot_visual" mesh="feet" material="feet_material" class="visual"/>
+              <site name="fr_foot" pos="0 0 0" type="sphere" size="0.022"/>
+              <geom name="fr_foot_collision" class="foot"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- RL -->
+      <body name="rl_shoulder_link" pos="-0.1835 0.0475 0">
+        <inertial pos="0.00598552 0.00880498 -0.00146505" mass="0.42"
+          fullinertia="0.000238461 0.000387612 0.00033247 2.21138e-05 -3.70032e-06 1.53448e-05"/>
+        <joint name="rl_shoulder_joint" class="shoulder_joint"
+          axis="1 0 0" range="-1.0472 1.0472"/>
+        <!-- URDF visual rpy = (0, 0, pi/2) -->
+        <geom name="rl_shoulder_link_visual" quat="0.707107 0 0 0.707107" mesh="shoulder"
+          material="shoulder_material" class="visual"/>
+        <geom name="rl_shoulder_link_collision" type="box" quat="0.707107 0 0 0.707107"
+          pos="0.0075 0.0123 0" size="0.0302 0.0475 0.04" class="collision"/>
+        <body name="rl_hip_link" pos="0 0.0835 0">
+          <inertial pos="0.000597466 -0.0146741 -0.0153971" mass="0.7"
+            fullinertia="0.0011656 0.00123583 0.000397878 -1.25867e-05 -1.45116e-05 0.000143806"/>
+          <joint name="rl_hip_joint" class="hip_joint"
+            axis="0 1 0" range="-1.7 3.5"/>
+          <geom name="rl_hip_link_visual" mesh="lefthip" material="hip_material" class="visual"/>
+          <geom name="rl_hip_link_collision" type="capsule" pos="0 -0.0148 -0.0475"
+            size="0.0345 0.0530" class="collision"/>
+          <body name="rl_knee_link" pos="0 0 -0.12">
+            <inertial pos="0.00415201 -2.15069e-05 -0.0486477" mass="0.1"
+              fullinertia="0.000258578 0.000265226 1.25963e-05 4.362e-09 9.89836e-06 -1.9627e-08"/>
+            <joint name="rl_knee_joint" class="knee_joint"
+              axis="0 1 0" range="-2.5 0"/>
+            <geom name="rl_knee_link_visual" mesh="leftknee" material="knee_material" class="visual"/>
+            <geom name="rl_knee_link_collision" type="capsule" pos="0.001 0 -0.0513"
+              size="0.0137 0.0750" class="collision"/>
+            <body name="rl_foot_link" pos="0 0 -0.12">
+              <inertial pos="-0.00526123 0 -0.00526123" mass="0.01"
+                diaginertia="2.47992e-06 4.79318e-06 2.47992e-06"/>
+              <geom name="rl_foot_visual" mesh="feet" material="feet_material" class="visual"/>
+              <site name="rl_foot" pos="0 0 0" type="sphere" size="0.022"/>
+              <geom name="rl_foot_collision" class="foot"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- RR -->
+      <body name="rr_shoulder_link" pos="-0.1835 -0.0475 0">
+        <inertial pos="0.00598552 -0.00880498 0.00146505" mass="0.42"
+          fullinertia="0.000238461 0.000387612 0.00033247 -2.21138e-05 3.70032e-06 1.53448e-05"/>
+        <joint name="rr_shoulder_joint" class="shoulder_joint"
+          axis="1 0 0" range="-1.0472 1.0472"/>
+        <!-- URDF visual rpy = (-pi, 0, -pi/2) -->
+        <geom name="rr_shoulder_link_visual" quat="0 -0.707107 0.707107 0" mesh="shoulder"
+          material="shoulder_material" class="visual"/>
+        <geom name="rr_shoulder_link_collision" type="box" quat="0 -0.707107 0.707107 0"
+          pos="0.0075 -0.0123 0" size="0.0302 0.0475 0.04" class="collision"/>
+        <body name="rr_hip_link" pos="0 -0.0835 0">
+          <inertial pos="0.000597465 0.0146741 -0.0153971" mass="0.7"
+            fullinertia="0.0011656 0.00123583 0.000397878 1.25867e-05 -1.45116e-05 -0.000143806"/>
+          <joint name="rr_hip_joint" class="hip_joint"
+            axis="0 1 0" range="-1.7 3.5"/>
+          <!-- URDF visual rpy = (0, 0, -pi/2) -->
+          <geom name="rr_hip_link_visual" quat="0.707107 0 0 -0.707107" mesh="rightthip"
+            material="hip_material" class="visual"/>
+          <geom name="rr_hip_link_collision" type="capsule" quat="0.707107 0 0 -0.707107"
+            pos="0 0.0148 -0.0475" size="0.0345 0.0530" class="collision"/>
+          <body name="rr_knee_link" pos="0 0 -0.12">
+            <inertial pos="0.00415201 2.15069e-05 -0.0486477" mass="0.1"
+              fullinertia="0.000258578 0.000265226 1.25963e-05 -4.362e-09 9.89836e-06 1.9627e-08"/>
+            <joint name="rr_knee_joint" class="knee_joint"
+              axis="0 1 0" range="-2.5 0"/>
+            <geom name="rr_knee_link_visual" mesh="rightknee" material="knee_material" class="visual"/>
+            <geom name="rr_knee_link_collision" type="capsule" pos="0.001 0 -0.0513"
+              size="0.0137 0.0750" class="collision"/>
+            <body name="rr_foot_link" pos="0 0 -0.12">
+              <inertial pos="-0.00526123 0 -0.00526123" mass="0.01"
+                diaginertia="2.47992e-06 4.79318e-06 2.47992e-06"/>
+              <geom name="rr_foot_visual" mesh="feet" material="feet_material" class="visual"/>
+              <site name="rr_foot" pos="0 0 0" type="sphere" size="0.022"/>
+              <geom name="rr_foot_collision" class="foot"/>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <sensor>
+    <velocimeter name="imu_lin_vel" site="imu"/>
+    <gyro name="imu_ang_vel" site="imu"/>
+    <subtreeangmom name="root_angmom" body="chassis"/>
+  </sensor>
+</mujoco>

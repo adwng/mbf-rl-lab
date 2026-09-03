@@ -5,7 +5,7 @@ from pathlib import Path
 import mujoco
 
 from src import SRC_PATH
-from mjlab.actuator import BuiltinPositionActuatorCfg
+from mjlab.actuator import BuiltinPositionActuatorCfg, DelayedActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 from mjlab.utils.os import update_assets
 from mjlab.utils.spec_config import CollisionCfg
@@ -13,9 +13,11 @@ from mjlab.utils.spec_config import CollisionCfg
 ##
 # MJCF and assets.
 ##
+# v2 model: kinematics / inertias / mesh collision from mbf_description URDF,
+# with joint armature/damping/frictionloss identified in scripts/sysid/.
 
 MBF_XML: Path = (
-  SRC_PATH / "assets" / "robots" / "mbf" / "xmls" / "mbf.xml"
+  SRC_PATH / "assets" / "robots" / "mbf_v2" / "mbf.xml"
 )
 assert MBF_XML.exists()
 
@@ -35,32 +37,66 @@ def get_spec() -> mujoco.MjSpec:
 ##
 # Actuator config.
 ##
-# Matches the PD gains used on the real MBF hardware (Kp=20, Kd=0.5).
-# Armatures (rotor inertia reflected through each joint's gearbox) are kept
-# from the MJCF defaults: 0.02 for shoulder/hip, 0.01 for knee.
+# PD gains match real MBF hardware (Kp=20, Kd=0.5).
+# frictionloss identified from data/sysid/ by scripts/sysid/identify_actuator.py
+# (see scripts/sysid/README.md). ARMATURE stays at 0.003: the bench data cannot
+# identify it -- replay RMSE is flat for anything in 0.0024-0.0060 -- so the
+# joint_armature DR range carries that uncertainty instead.
+# Note: BuiltinPositionActuatorCfg overwrites MJCF joint armature/frictionloss,
+# so these must stay in sync with mbf_v2/mbf.xml.
+# Physical viscous damping stays in the MJCF joint defaults (~0.135–0.176).
 
 STIFFNESS = 20.0
 DAMPING = 0.5
 
-ARMATURE_HIP_SHOULDER = 0.02
-ARMATURE_KNEE = 0.01
+ARMATURE = 0.003
+EFFORT_LIMIT = 10.0  # Nm
 
-EFFORT_LIMIT = 10.0  # Nm, matches the per-class motor forcerange in the MJCF.
+# Physics dt = 5 ms; delay_max_lag=4 → up to 20 ms command delay (sim2real).
+# Copy armature/frictionloss onto the wrapper so DR helpers that read the
+# outer ActuatorCfg see the nominal values.
+def _delayed(base: BuiltinPositionActuatorCfg) -> DelayedActuatorCfg:
+  return DelayedActuatorCfg(
+    base_cfg=base,
+    delay_min_lag=0,
+    delay_max_lag=4,
+    delay_target="position",
+    armature=base.armature,
+    frictionloss=base.frictionloss,
+  )
 
-MBF_HIP_SHOULDER_ACTUATOR_CFG = BuiltinPositionActuatorCfg(
-  target_names_expr=(".*_hip_joint", ".*_shoulder_joint"),
-  stiffness=STIFFNESS,
-  damping=DAMPING,
-  effort_limit=EFFORT_LIMIT,
-  armature=ARMATURE_HIP_SHOULDER,
+
+MBF_SHOULDER_ACTUATOR_CFG = _delayed(
+  BuiltinPositionActuatorCfg(
+    target_names_expr=(".*_shoulder_joint",),
+    stiffness=STIFFNESS,
+    damping=DAMPING,
+    effort_limit=EFFORT_LIMIT,
+    armature=ARMATURE,
+    frictionloss=0.228,
+  )
 )
 
-MBF_KNEE_ACTUATOR_CFG = BuiltinPositionActuatorCfg(
-  target_names_expr=(".*_knee_joint",),
-  stiffness=STIFFNESS,
-  damping=DAMPING,
-  effort_limit=EFFORT_LIMIT,
-  armature=ARMATURE_KNEE,
+MBF_HIP_ACTUATOR_CFG = _delayed(
+  BuiltinPositionActuatorCfg(
+    target_names_expr=(".*_hip_joint",),
+    stiffness=STIFFNESS,
+    damping=DAMPING,
+    effort_limit=EFFORT_LIMIT,
+    armature=ARMATURE,
+    frictionloss=0.092,
+  )
+)
+
+MBF_KNEE_ACTUATOR_CFG = _delayed(
+  BuiltinPositionActuatorCfg(
+    target_names_expr=(".*_knee_joint",),
+    stiffness=STIFFNESS,
+    damping=DAMPING,
+    effort_limit=EFFORT_LIMIT,
+    armature=ARMATURE,
+    frictionloss=0.146,
+  )
 )
 
 ##
@@ -68,9 +104,10 @@ MBF_KNEE_ACTUATOR_CFG = BuiltinPositionActuatorCfg(
 ##
 # Crouched, all-feet-on-ground default pose. Hip joints rotate the thigh
 # forward (positive about y), knees fold the calf back (negative).
+# Root height ≈ 0.206 m with L_thigh=L_calf=0.12 and foot sphere r=0.022.
 
 INIT_STATE = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 0.21),
+  pos=(0.0, 0.0, 0.206),
   joint_pos={
     ".*_shoulder_joint": 0.0,
     ".*_hip_joint": 0.7,
@@ -112,7 +149,8 @@ FEET_ONLY_COLLISION = CollisionCfg(
 
 MBF_ARTICULATION = EntityArticulationInfoCfg(
   actuators=(
-    MBF_HIP_SHOULDER_ACTUATOR_CFG,
+    MBF_SHOULDER_ACTUATOR_CFG,
+    MBF_HIP_ACTUATOR_CFG,
     MBF_KNEE_ACTUATOR_CFG,
   ),
   soft_joint_pos_limit_factor=0.9,
@@ -132,12 +170,14 @@ def get_mbf_robot_cfg() -> EntityCfg:
 # Per-joint action scale: 0.25 * effort_limit / stiffness.
 MBF_ACTION_SCALE: dict[str, float] = {}
 for _a in MBF_ARTICULATION.actuators:
-  assert isinstance(_a, BuiltinPositionActuatorCfg)
-  _e = _a.effort_limit
-  _s = _a.stiffness
+  _base = _a.base_cfg if isinstance(_a, DelayedActuatorCfg) else _a
+  assert isinstance(_base, BuiltinPositionActuatorCfg)
+  _e = _base.effort_limit
+  _s = _base.stiffness
   assert _e is not None
-  for _n in _a.target_names_expr:
-    MBF_ACTION_SCALE[_n] = 0.25 * _e / _s
+  for _n in _base.target_names_expr:
+    # MBF_ACTION_SCALE[_n] = 0.25 * _e / _s
+    MBF_ACTION_SCALE[_n] = 0.25 
 
 
 if __name__ == "__main__":

@@ -42,13 +42,14 @@ def _ppo(experiment_name: str, max_iterations: int) -> RslRlOnPolicyRunnerCfg:
     save_interval=100,
     num_steps_per_env=24,
     max_iterations=max_iterations,
+    # max_iterations=10001,
   )
 
 
 def mbf_flat_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   """PPO config for MBF flat-terrain velocity task."""
   # Flat terrain converges quickly; 5k iters is usually plenty.
-  return _ppo(experiment_name="mbf_velocity_flat", max_iterations=2001)
+  return _ppo(experiment_name="mbf_velocity_flat", max_iterations=2501)
 
 
 def mbf_rough_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:

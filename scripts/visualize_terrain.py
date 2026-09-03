@@ -9,6 +9,14 @@ Usage:
 
   # Show the upstream ALL_TERRAINS_CFG (every terrain type):
   python scripts/visualize_terrain.py --preset all
+
+  # Faster load with a smaller grid:
+  python scripts/visualize_terrain.py --rows 4 --cols 4
+
+See also:
+  python scripts/visualize_robot.py
+  python scripts/visualize_robot.py --mode zero
+  python scripts/visualize_robot.py --mode random --task Mbf-Rough
 """
 
 from __future__ import annotations
@@ -37,13 +45,28 @@ def _mbf_rough_terrain_cfg():
 
 
 def main() -> None:
-  parser = argparse.ArgumentParser(description=__doc__)
+  parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+  )
   parser.add_argument(
     "--preset",
     choices=("mbf", "default", "all"),
     default="mbf",
     help="'mbf' (Mbf-Rough), 'default' (mjlab ROUGH_TERRAINS_CFG), "
     "'all' (mjlab ALL_TERRAINS_CFG).",
+  )
+  parser.add_argument(
+    "--rows",
+    type=int,
+    default=None,
+    help="Override terrain generator num_rows (smaller = faster load).",
+  )
+  parser.add_argument(
+    "--cols",
+    type=int,
+    default=None,
+    help="Override terrain generator num_cols (smaller = faster load).",
   )
   args = parser.parse_args()
 
@@ -53,6 +76,11 @@ def main() -> None:
     gen = replace(ROUGH_TERRAINS_CFG)
   else:
     gen = replace(ALL_TERRAINS_CFG)
+
+  if args.rows is not None:
+    gen.num_rows = args.rows
+  if args.cols is not None:
+    gen.num_cols = args.cols
 
   print(
     f"[INFO] preset={args.preset} "
